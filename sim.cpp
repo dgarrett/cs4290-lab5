@@ -44,6 +44,7 @@ all_knobs_c    *g_knobs; /* < all knob variables > */
 
 #define HW_MAX_THREAD 4   // add this line 
 gzFile g_stream[HW_MAX_THREAD];    // replace extern gzFile stream;
+int ID_scheduler_thread = 0;
 
 void init_knobs(int argc, char** argv) {
   // Create the knob managing class
@@ -207,6 +208,8 @@ typedef struct pipeline_latch_struct {
   Op *op; /* you must update this data structure. */
   bool op_valid; 
    /* you might add more data structures. But you should complete the above data elements */ 
+  Op* op_thread[HW_MAX_THREAD]; // op for each thread waiting to be scheduled in decode
+  bool op_valid_thread[HW_MAX_THREAD];
 }pipeline_latch; 
 
 
@@ -557,6 +560,7 @@ void init_structures(memory_c *main_memory) {
   // Initialize branch predictor and TLB
   branchpred =  bpred_new((bpred_type)KNOB(KNOB_BPRED_TYPE)->getValue(), KNOB(KNOB_BPRED_HIST_LEN)->getValue()); 
   dtlb = tlb_new( (int)KNOB(KNOB_TLB_ENTRIES)->getValue() ); 
+
 
 }
 
@@ -1039,6 +1043,24 @@ void EX_stage() {
 }
 
 void ID_stage() {
+  // schedule new OP
+  if (!FE_latch->op_valid)
+  {
+    int original_ID_scheduler_thread = ID_scheduler_thread;
+    while (!FE_latch->op_valid_thread[ID_scheduler_thread] && ID_scheduler_thread != original_ID_scheduler_thread)
+    {
+      ID_scheduler_thread = (ID_scheduler_thread + 1) % KNOB(KNOB_RUN_THREAD_NUM)->getValue();
+    }
+    if (FE_latch->op_valid_thread[ID_scheduler_thread])
+    {
+      FE_latch->op = FE_latch->op_thread[ID_scheduler_thread];
+      FE_latch->op_valid = true;
+
+      FE_latch->op_thread[ID_scheduler_thread] = NULL;
+      FE_latch->op_valid_thread[ID_scheduler_thread] = false;
+    }
+  }
+
   if( FE_latch->op_valid ) {
     /* Checking for any source data hazard */
     if( EX_latency_countdown==0) {
@@ -1065,6 +1087,7 @@ void ID_stage() {
     else if( !data_stall ) {      //no data stall
       ID_latch->op = FE_latch->op;  
       ID_latch->op_valid = FE_latch->op_valid;
+      FE_latch->op_valid = false;
       if( FE_latch->op->dst != -1 ) {
         register_file[FE_latch->op->thread_id][ FE_latch->op->dst ].valid = false; 
         register_file[FE_latch->op->thread_id][ FE_latch->op->dst ].count++;
@@ -1109,8 +1132,8 @@ void FE_stage(memory_c *main_memory) {
         FE_latch->op_valid = false; 
         return;
       }
-      FE_latch->op = op;
-      FE_latch->op_valid = true;
+      FE_latch->op_thread[op->thread_id] = op;
+      FE_latch->op_valid_thread[op->thread_id] = true;
 
 
       if(op->mem_type==MEM_LD) {
@@ -1183,6 +1206,12 @@ void  init_latches() {
   ID_latch->op_valid = false;
   FE_latch->op_valid = false;
   TEMP->op_valid = false;
+
+  for (int thread = 0; thread < HW_MAX_THREAD; thread++)
+  {
+    ID_latch->op_thread[thread] = NULL;
+    ID_latch->op_valid_thread[thread] = false;
+  }
 }
 
 void init_regfile() {
