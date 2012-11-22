@@ -592,6 +592,7 @@ void WB_stage(memory_c *main_memory) {
     if(MEM_latch->op->miss_predict && (KNOB(KNOB_USE_BPRED)->getValue()==1)) {
       control_stall = false;
       MEM_latch->op->miss_predict = false;
+      br_stall[MEM_latch->op->thread_id] = false;
     }
 
     if( MEM_latch->op->dst!= -1 ) {
@@ -1098,19 +1099,26 @@ void FE_stage(memory_c *main_memory) {
   else{
     Op *op = get_free_op();
   
-    if( get_op(op) ){  
+    int result;
+    if( result = get_op(op) ){  
+      if (result == -1) //br_stall_fail
+      {
+        FE_latch->op = NULL;
+        FE_latch->op_valid = false; 
+        return;
+      }
       FE_latch->op = op;
       FE_latch->op_valid = true;
 
 
-    if(op->mem_type==MEM_LD) {
-      mem_inst++;
-      ld_inst++;
-    }
-    else if(op->mem_type==MEM_ST) {
-      mem_inst++;
-      st_inst++;
-    }
+      if(op->mem_type==MEM_LD) {
+        mem_inst++;
+        ld_inst++;
+      }
+      else if(op->mem_type==MEM_ST) {
+        mem_inst++;
+        st_inst++;
+      }
     
       //op->thread_id = 0;    //change this for SMT system
       op->miss_predict = false;
@@ -1122,6 +1130,7 @@ void FE_stage(memory_c *main_memory) {
         if(bpred_result!=op->actually_taken) {
           op->miss_predict = true;
           control_stall = true;
+          br_stall[op->thread_id] = true;
           bpred_mispred_count++;
           bpred_mispred_count_thread[op->thread_id]++;
         }
