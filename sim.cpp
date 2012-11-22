@@ -45,6 +45,7 @@ all_knobs_c    *g_knobs; /* < all knob variables > */
 #define HW_MAX_THREAD 4   // add this line 
 gzFile g_stream[HW_MAX_THREAD];    // replace extern gzFile stream;
 int ID_scheduler_thread = 0;
+bool data_stall_thread[HW_MAX_THREAD];
 
 void init_knobs(int argc, char** argv) {
   // Create the knob managing class
@@ -392,7 +393,7 @@ int get_op(Op *op)
   for (int jj = 0; jj < (KNOB(KNOB_RUN_THREAD_NUM)->getValue()); jj++) {
     fetch_id = (fetch_arbiter++%(KNOB(KNOB_RUN_THREAD_NUM)->getValue()));
 
-    if (br_stall[fetch_id]) {
+    if (br_stall[fetch_id] || FE_latch->op_valid_thread[fetch_id]) {
       br_stall_fail = true; 
       continue; 
     }
@@ -493,6 +494,7 @@ void print_pipeline() {
   cout << endl; 
   //  dump_reg();   
   std::cout << "--------------------------------------------" << endl; 
+  std::cout << "stalls: " << data_stall_thread[0] << " " << data_stall_thread[1] << " " << data_stall_thread[2] << " " << data_stall_thread[3] << std::endl;
 }
 
 //lab4
@@ -561,7 +563,10 @@ void init_structures(memory_c *main_memory) {
   branchpred =  bpred_new((bpred_type)KNOB(KNOB_BPRED_TYPE)->getValue(), KNOB(KNOB_BPRED_HIST_LEN)->getValue()); 
   dtlb = tlb_new( (int)KNOB(KNOB_TLB_ENTRIES)->getValue() ); 
 
-
+  for (int t = 0; t < HW_MAX_THREAD; t++)
+  {
+    data_stall_thread[t] = false;
+  }
 }
 
 void MEM_WB_stage(){
@@ -571,8 +576,11 @@ void MEM_WB_stage(){
       register_file[op->thread_id][op->dst].count--;
       if( register_file[op->thread_id][op->dst].count==0 ) {
         register_file[op->thread_id][op->dst].valid = true;
-       	if(data_stall)
+       	if(data_stall_thread[op->thread_id])
+        {
        	  data_stall = false;
+          data_stall_thread[op->thread_id] = false;
+        }
       	} 
       }	 
       if(mem_ops_mshr>0)
@@ -613,18 +621,21 @@ void WB_stage(memory_c *main_memory) {
         for(cii_memop=entry->req_ops.begin() ; cii_memop !=entry->req_ops.end(); cii_memop++) {
           Op *m_op=(*cii_memop);
           if(m_op->dst==MEM_latch->op->dst) {
-	    if((register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count>0) && (MEM_latch->op->inst_id > m_op->inst_id) && (m_op->mem_decrement==true)) {
-	      register_file[m_op->thread_id][ m_op->dst ].count--;
-	      m_op->mem_decrement=false;
-	    }
-	  }
+      	    if((register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count>0) && (MEM_latch->op->inst_id > m_op->inst_id) && (m_op->mem_decrement==true)) {
+      	      register_file[m_op->thread_id][ m_op->dst ].count--;
+      	      m_op->mem_decrement=false;
+      	    }
+      	  }
         }
       }
 	
       if( register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count==0 ) {
         register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].valid = true;
-        if(data_stall)
+        if(data_stall_thread[MEM_latch->op->thread_id])
+        {
           data_stall = false;
+          data_stall_thread[MEM_latch->op->thread_id] = false;
+        }
       } 
     }
 	
@@ -1051,7 +1062,7 @@ void ID_stage() {
     {
       ID_scheduler_thread = (ID_scheduler_thread + 1) % KNOB(KNOB_RUN_THREAD_NUM)->getValue();
     }
-    if (FE_latch->op_valid_thread[ID_scheduler_thread])
+    if (FE_latch->op_valid_thread[ID_scheduler_thread] && !data_stall_thread[ID_scheduler_thread])
     {
       FE_latch->op = FE_latch->op_thread[ID_scheduler_thread];
       FE_latch->op_valid = true;
@@ -1069,6 +1080,7 @@ void ID_stage() {
         if( register_file[FE_latch->op->thread_id][ FE_latch->op->src[ii] ].valid == false ) {
           data_hazard_count++;  
           data_stall = true;
+          data_stall_thread[FE_latch->op->thread_id] = true;
           break;
         }
       }
@@ -1084,7 +1096,7 @@ void ID_stage() {
       ID_latch->op = ID_latch->op;  
       ID_latch->op_valid = ID_latch->op_valid;  
     }
-    else if( !data_stall ) {      //no data stall
+    else if( !data_stall_thread[FE_latch->op->thread_id] ) {      //no data stall
       ID_latch->op = FE_latch->op;  
       ID_latch->op_valid = FE_latch->op_valid;
       FE_latch->op_valid = false;
@@ -1128,8 +1140,8 @@ void FE_stage(memory_c *main_memory) {
     if( result = get_op(op) ){  
       if (result == -1) //br_stall_fail
       {
-        FE_latch->op = NULL;
-        FE_latch->op_valid = false; 
+        //FE_latch->op = NULL;
+        //FE_latch->op_valid = false; 
         return;
       }
       FE_latch->op_thread[op->thread_id] = op;
