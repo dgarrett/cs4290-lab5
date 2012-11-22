@@ -587,6 +587,7 @@ void MEM_WB_stage(){
         mem_ops_mshr--;
      	
     retired_instruction++; 
+    retired_instruction_thread[op->thread_id]++;
 
     if(op->valid)
       free_op(op);
@@ -641,7 +642,10 @@ void WB_stage(memory_c *main_memory) {
 	
     retired_instruction++;
     if(MEM_latch->op->valid)
+    {
+      retired_instruction_thread[MEM_latch->op->thread_id]++;
       free_op(MEM_latch->op);
+    }
     else
       printf("ERROR!!! Why free and invalid op?!\n");
   }
@@ -707,6 +711,7 @@ void MEM_stage(memory_c *main_memory) {
         tlb_install(dtlb, local_vpn, op_ptr->thread_id, local_pfn);
         mem_stall = 1;
         dcache_hit_count++;
+        dcache_hit_count_thread[op_ptr->thread_id]++;
         return;
       }
       else 
@@ -717,7 +722,10 @@ void MEM_stage(memory_c *main_memory) {
     if(op_ptr->mem_type==MEM_LD) {
       if(dcache_access(dcache_address)) {
         if(was_stalled==0)
+        {
           dcache_hit_count++;
+          dcache_hit_count_thread[op_ptr->thread_id]++;
+        }
         was_stalled = 0;
         MEM_latch->op_valid=true;
         MEM_latch->op = op_ptr;
@@ -731,19 +739,23 @@ void MEM_stage(memory_c *main_memory) {
           MEM_latch->op_valid=true;
           MEM_latch->op = op_ptr;
           store_load_forwarding_count++;
+          store_load_forwarding_count_thread[op_ptr->thread_id]++;
           dcache_miss_count++;
+          dcache_miss_count_thread[op_ptr->thread_id]++;
           dcache_replay_miss_count++;
           was_stalled = 0;
         }
         else if(main_memory->check_piggyback(op_ptr)) {
           was_stalled = 0;
           dcache_miss_count++;
+          dcache_miss_count_thread[op_ptr->thread_id]++;
           dcache_replay_miss_count++;
           mem_ops_mshr++;
         }
         else if(main_memory->insert_mshr(op_ptr)) {
           was_stalled = 0;
           dcache_miss_count++;
+          dcache_miss_count_thread[op_ptr->thread_id]++;
           dcache_replay_miss_count++;
           mem_ops_mshr++;
         }
@@ -758,7 +770,10 @@ void MEM_stage(memory_c *main_memory) {
     else {   //if(EX_latch->op->mem_type==MEM_ST) {   
       if(dcache_access(dcache_address)) {
         if(was_stalled==0)
+        {
           dcache_hit_count++;
+          dcache_hit_count_thread[op_ptr->thread_id]++;
+        }
         was_stalled = 0;
         MEM_latch->op_valid=true;
         MEM_latch->op = op_ptr;
@@ -772,15 +787,18 @@ void MEM_stage(memory_c *main_memory) {
           MEM_latch->op = op_ptr;
           was_stalled = 0;
           dcache_miss_count++;
+          dcache_miss_count_thread[op_ptr->thread_id]++;
         }
         else if(main_memory->check_piggyback(op_ptr)) {
           was_stalled = 0;
           dcache_miss_count++;
+          dcache_miss_count_thread[op_ptr->thread_id]++;
           mem_ops_mshr++;
         }
         else if(main_memory->insert_mshr(op_ptr)) {
           was_stalled = 0;
           dcache_miss_count++;
+          dcache_miss_count_thread[op_ptr->thread_id]++;
           mem_ops_mshr++;
         }
         else {  //MSHR full
@@ -830,6 +848,7 @@ void MEM_stage(memory_c *main_memory) {
       if(!tlb_result) {
         if(!EX_latch->op->tlb_accessed) {
           dtlb_miss_count++;
+          dtlb_miss_count_thread[EX_latch->op->thread_id]++;
           EX_latch->op->tlb_accessed = true;
         }
         TLB_miss = true;
@@ -840,6 +859,7 @@ void MEM_stage(memory_c *main_memory) {
           TLB_replay_queue.push_back(EX_latch->op);
           mem_stall = 1;
           dcache_hit_count++;
+          dcache_hit_count_thread[EX_latch->op->thread_id]++;
           EX_latch->op_valid=false;
           EX_latch->op=NULL;
           dcache_pte_hit_count++;
@@ -851,6 +871,8 @@ void MEM_stage(memory_c *main_memory) {
           EX_latch->op->pte_addr = pte_addr;
           dcache_pte_miss_count++;
           if(main_memory->store_load_forwarding(EX_latch->op)) {
+            dcache_miss_count_thread[EX_latch->op->thread_id]++;
+            store_load_forwarding_count_thread[EX_latch->op->thread_id]++;
             EX_latch->op_valid=false;
             EX_latch->op=NULL;
             mem_stall = 1;
@@ -862,6 +884,7 @@ void MEM_stage(memory_c *main_memory) {
             mem_stall = 1;
             was_stalled = 0;
             dcache_miss_count++;
+            dcache_miss_count_thread[EX_latch->op->thread_id]++;
             mem_ops_mshr++;
             EX_latch->op_valid=false;
             EX_latch->op=NULL;
@@ -870,6 +893,7 @@ void MEM_stage(memory_c *main_memory) {
             mem_stall = 1;
             was_stalled = 0;
             dcache_miss_count++;
+            dcache_miss_count_thread[EX_latch->op->thread_id]++;
             mem_ops_mshr++;
             EX_latch->op_valid=false;
             EX_latch->op=NULL;
@@ -886,6 +910,7 @@ void MEM_stage(memory_c *main_memory) {
         dcache_address = (local_pfn*vmem_page_size) + (dcache_address%vmem_page_size);  //Generate physical address
          if(!EX_latch->op->tlb_accessed) {
           dtlb_hit_count++;
+          dtlb_hit_count_thread[EX_latch->op->thread_id]++;
           EX_latch->op->tlb_accessed = true;
         }
         TLB_miss =false;
@@ -897,7 +922,10 @@ void MEM_stage(memory_c *main_memory) {
       if(cache_delay==0) {
         if(dcache_access(dcache_address)) {
 	  if(was_stalled==0)
+    {
 	    dcache_hit_count++;
+      dcache_hit_count_thread[EX_latch->op->thread_id]++;
+    }
 		
 	  was_stalled = 0;
 	  MEM_latch->op_valid=EX_latch->op_valid;
@@ -914,7 +942,9 @@ void MEM_stage(memory_c *main_memory) {
 	  if(main_memory->store_load_forwarding(EX_latch->op)) {
 	    MEM_latch->op_valid=EX_latch->op_valid;
 	    MEM_latch->op = EX_latch->op;
-      	    EX_latch->op_valid=false;
+      EX_latch->op_valid=false;
+      dcache_miss_count_thread[EX_latch->op->thread_id]++;
+      store_load_forwarding_count_thread[EX_latch->op->thread_id]++;
 	    EX_latch->op=NULL;
 	    mem_stall = -1;
 	    store_load_forwarding_count++;
@@ -924,6 +954,7 @@ void MEM_stage(memory_c *main_memory) {
 	  else if(main_memory->check_piggyback(EX_latch->op)) {
 	    mem_stall = -1;
 	    was_stalled = 0;
+      dcache_miss_count_thread[EX_latch->op->thread_id]++;
 	    dcache_miss_count++;
 	    mem_ops_mshr++;
       	    EX_latch->op_valid=false;
@@ -932,6 +963,7 @@ void MEM_stage(memory_c *main_memory) {
 	  else if(main_memory->insert_mshr(EX_latch->op)) {
 	    mem_stall = -1;
 	    was_stalled = 0;
+      dcache_miss_count_thread[EX_latch->op->thread_id]++;
 	    dcache_miss_count++;
 	    mem_ops_mshr++;
       	    EX_latch->op_valid=false;
@@ -949,7 +981,10 @@ void MEM_stage(memory_c *main_memory) {
       if(cache_delay==0) {
         if(dcache_access(dcache_address)) {
 	  if(was_stalled==0)
+    {
 	    dcache_hit_count++;
+      dcache_hit_count_thread[EX_latch->op->thread_id]++;
+    }
 				
 	  was_stalled = 0;
 	  MEM_latch->op_valid=EX_latch->op_valid;
@@ -964,6 +999,7 @@ void MEM_stage(memory_c *main_memory) {
           EX_latch->op->physical_addr = dcache_address;
 
 	  if(main_memory->store_load_forwarding(EX_latch->op)) {
+      dcache_miss_count_thread[EX_latch->op->thread_id]++;
             MEM_latch->op_valid=EX_latch->op_valid;
 	    MEM_latch->op = EX_latch->op;
   	    EX_latch->op_valid=false;
@@ -971,11 +1007,13 @@ void MEM_stage(memory_c *main_memory) {
 	    mem_stall = -1;
 	    was_stalled = 0;
 	    dcache_miss_count++;
+      
 	  }
 	  else if(main_memory->check_piggyback(EX_latch->op)) {
 	    mem_stall = -1;
 	    was_stalled = 0;
 	    dcache_miss_count++;
+      dcache_miss_count_thread[EX_latch->op->thread_id]++;
 	    mem_ops_mshr++;
   	    EX_latch->op_valid=false;
 	    EX_latch->op=NULL;
@@ -984,6 +1022,7 @@ void MEM_stage(memory_c *main_memory) {
 	    mem_stall = -1;
 	    was_stalled = 0;
 	    dcache_miss_count++;
+      dcache_miss_count_thread[EX_latch->op->thread_id]++;
 	    mem_ops_mshr++;
 	    EX_latch->op_valid=false;
 	    EX_latch->op=NULL;
@@ -1079,6 +1118,7 @@ void ID_stage() {
       for (int ii = 0; ii < FE_latch->op->num_src; ii++) {
         if( register_file[FE_latch->op->thread_id][ FE_latch->op->src[ii] ].valid == false ) {
           data_hazard_count++;  
+          data_hazard_count_thread[FE_latch->op->thread_id]++;
           data_stall = true;
           data_stall_thread[FE_latch->op->thread_id] = true;
           break;
@@ -1087,6 +1127,7 @@ void ID_stage() {
  
       if( FE_latch->op->opcode == OP_CF && !KNOB(KNOB_USE_BPRED)->getValue()) {
         control_hazard_count++;
+        control_hazard_count_thread[FE_latch->op->thread_id]++;
         control_stall = true;
       }      
     }
