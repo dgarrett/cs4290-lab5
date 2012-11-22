@@ -374,10 +374,11 @@ void print_stats() {
 /*******************************************************************/
 
 // lab4
+UINT64 fetch_arbiter;
 int get_op(Op *op)
 {
   static UINT64 unique_count = 0; 
-  static UINT64 fetch_arbiter; 
+  //static UINT64 fetch_arbiter; 
   
   Trace_op trace_op; 
   bool success = FALSE; 
@@ -1173,6 +1174,7 @@ void FE_stage(memory_c *main_memory) {
     FE_latch->op = NULL;
     FE_latch->op_valid = false;    
     control_hazard_count++;
+    control_hazard_count_thread[fetch_arbiter % (KNOB(KNOB_RUN_THREAD_NUM)->getValue())]++;
   }
   else{
     Op *op = get_free_op();
