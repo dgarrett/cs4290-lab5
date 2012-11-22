@@ -217,7 +217,7 @@ typedef struct Reg_element_struct{
   /* you might add more data structures. But you should complete the above data elements */ 
 }REG_element; 
 
-REG_element register_file[NUM_REG];
+REG_element register_file[HW_MAX_THREAD][NUM_REG];
 
 
 /*******************************************************************/
@@ -426,8 +426,10 @@ int get_op_latency (Op *op)
 
 /* Print out all the register values */ 
 void dump_reg() {
-  for (int ii = 0; ii < NUM_REG; ii++) {
-    std::cout << cycle_count << ":register[" << ii  << "]: V:" << register_file[ii].valid << endl; 
+  for (int thread = 0; thread < KNOB(KNOB_RUN_THREAD_NUM)->getValue(); thread++) {
+    for (int ii = 0; ii < NUM_REG; ii++) {
+      std::cout << cycle_count << " thread(" << thread << ") " ":register[" << ii  << "]: V:" << register_file[thread][ii].valid << endl; 
+    }
   }
 }
 
@@ -562,9 +564,9 @@ void MEM_WB_stage(){
   for(MEM_WB_latch_iterator=MEM_WB_latch.begin(); MEM_WB_latch_iterator!=MEM_WB_latch.end(); ++MEM_WB_latch_iterator) {
     Op* op = *MEM_WB_latch_iterator;
     if((op->dst!= -1) && (op->mem_decrement==true)) {
-      register_file[op->dst].count--;
-      if( register_file[op->dst].count==0 ) {
-        register_file[op->dst].valid = true;
+      register_file[op->thread_id][op->dst].count--;
+      if( register_file[op->thread_id][op->dst].count==0 ) {
+        register_file[op->thread_id][op->dst].valid = true;
        	if(data_stall)
        	  data_stall = false;
       	} 
@@ -596,8 +598,8 @@ void WB_stage(memory_c *main_memory) {
     }
 
     if( MEM_latch->op->dst!= -1 ) {
-      if(register_file[ MEM_latch->op->dst ].count>0)
-      register_file[ MEM_latch->op->dst ].count--;
+      if(register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count>0)
+      register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count--;
 
       list<m_mshr_entry_s*>::iterator cii;
       for (cii= main_memory->m_mshr.begin() ; cii !=main_memory->m_mshr.end(); cii++) {
@@ -607,16 +609,16 @@ void WB_stage(memory_c *main_memory) {
         for(cii_memop=entry->req_ops.begin() ; cii_memop !=entry->req_ops.end(); cii_memop++) {
           Op *m_op=(*cii_memop);
           if(m_op->dst==MEM_latch->op->dst) {
-	    if((register_file[ MEM_latch->op->dst ].count>0) && (MEM_latch->op->inst_id > m_op->inst_id) && (m_op->mem_decrement==true)) {
-	      register_file[ m_op->dst ].count--;
+	    if((register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count>0) && (MEM_latch->op->inst_id > m_op->inst_id) && (m_op->mem_decrement==true)) {
+	      register_file[m_op->thread_id][ m_op->dst ].count--;
 	      m_op->mem_decrement=false;
 	    }
 	  }
         }
       }
 	
-      if( register_file[ MEM_latch->op->dst ].count==0 ) {
-        register_file[ MEM_latch->op->dst ].valid = true;
+      if( register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count==0 ) {
+        register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].valid = true;
         if(data_stall)
           data_stall = false;
       } 
@@ -1042,10 +1044,10 @@ void ID_stage() {
     if( EX_latency_countdown==0) {
       /* Checking for any source data hazard */   
       for (int ii = 0; ii < FE_latch->op->num_src; ii++) {
-        if( register_file[ FE_latch->op->src[ii] ].valid == false ) {
+        if( register_file[FE_latch->op->thread_id][ FE_latch->op->src[ii] ].valid == false ) {
           data_hazard_count++;  
           data_stall = true;
-	break;
+          break;
         }
       }
  
@@ -1064,8 +1066,8 @@ void ID_stage() {
       ID_latch->op = FE_latch->op;  
       ID_latch->op_valid = FE_latch->op_valid;
       if( FE_latch->op->dst != -1 ) {
-        register_file[ FE_latch->op->dst ].valid = false; 
-        register_file[ FE_latch->op->dst ].count++;
+        register_file[FE_latch->op->thread_id][ FE_latch->op->dst ].valid = false; 
+        register_file[FE_latch->op->thread_id][ FE_latch->op->dst ].count++;
       }
     }
     else {
@@ -1184,9 +1186,11 @@ void  init_latches() {
 }
 
 void init_regfile() {
-  for (int ii = 0; ii < NUM_REG; ii++) {
-    register_file[ii].valid = true;
-    register_file[ii].count = 0;
+  for (int thread = 0; thread < KNOB(KNOB_RUN_THREAD_NUM)->getValue(); thread++) {
+    for (int ii = 0; ii < NUM_REG; ii++) {
+      register_file[thread][ii].valid = true;
+      register_file[thread][ii].count = 0;
+    }
   }
 }
 
