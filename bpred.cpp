@@ -46,7 +46,7 @@ bpred * bpred_new(bpred_type type, int hist_len) {
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-int bpred_access(bpred *b, unsigned int pc){
+int bpred_access(bpred *b, unsigned int pc, int thread_id){
 
   switch(b->type){
 
@@ -60,7 +60,7 @@ int bpred_access(bpred *b, unsigned int pc){
     return bpred_bimodal_access(b, pc);
 
   case BPRED_GSHARE:
-    return bpred_gshare_access(b, pc);
+    return bpred_gshare_access(b, pc, thread_id);
 
   default: 
     assert(0);
@@ -72,7 +72,7 @@ int bpred_access(bpred *b, unsigned int pc){
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-void   bpred_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir) {
+void   bpred_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir, int thread_id) {
   // update the stats
   if(pred_dir == resolve_dir)
     b->okpred++;
@@ -94,7 +94,7 @@ void   bpred_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir) {
       break;
 
     case BPRED_GSHARE:
-      bpred_gshare_update(b, pc, pred_dir, resolve_dir);
+      bpred_gshare_update(b, pc, pred_dir, resolve_dir, thread_id);
       break;
 
     default: 
@@ -159,9 +159,9 @@ void  bpred_gshare_init(bpred *b){
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-int   bpred_gshare_access(bpred *b, unsigned int pc){
+int   bpred_gshare_access(bpred *b, unsigned int pc, int thread_id){
 
-  int pht_index =  (pc^b->ghr) % (b->pht_entries);//(pc^BHR)&BHR_mask;
+  int pht_index =  (pc^b->ghr[thread_id]) % (b->pht_entries);//(pc^BHR)&BHR_mask;
   int pht_ctr = b->pht[pht_index];
 
   if(pht_ctr > BPRED_PHT_CTR_MAX/2)
@@ -173,18 +173,18 @@ int   bpred_gshare_access(bpred *b, unsigned int pc){
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-void  bpred_gshare_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir){
-  int pht_index = (pc^b->ghr) % (b->pht_entries);
+void  bpred_gshare_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir, int thread_id){
+  int pht_index = (pc^b->ghr[thread_id]) % (b->pht_entries);
   int pht_ctr = b->pht[pht_index];
   int new_pht_ctr;
 
   if(resolve_dir==1) {
     new_pht_ctr = BPRED_SAT_INC(pht_ctr, BPRED_PHT_CTR_MAX);
-    b->ghr = (b->ghr<<1) | 0x00000001;
+    b->ghr[thread_id] = (b->ghr[thread_id]<<1) | 0x00000001;
   }
   else {
     new_pht_ctr = BPRED_SAT_DEC(pht_ctr);
-    b->ghr = (b->ghr<<1);
+    b->ghr[thread_id] = (b->ghr[thread_id]<<1);
   }
 
   b->pht[pht_index] = new_pht_ctr;

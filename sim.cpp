@@ -1112,20 +1112,25 @@ void FE_stage(memory_c *main_memory) {
       st_inst++;
     }
     
-      op->thread_id = 0;    //change this for SMT system
+      //op->thread_id = 0;    //change this for SMT system
       op->miss_predict = false;
       if((op->opcode == OP_CF) && (op->cf_type == CF_CBR) && KNOB(KNOB_USE_BPRED)->getValue() ) {
-        int bpred_result = bpred_access(branchpred, op->instruction_addr);
+        int bpred_result = bpred_access(branchpred, op->instruction_addr, op->thread_id);
        
-        bpred_update(branchpred, op->instruction_addr, bpred_result, op->actually_taken); 
+        bpred_update(branchpred, op->instruction_addr, bpred_result, op->actually_taken, op->thread_id); 
         
         if(bpred_result!=op->actually_taken) {
           op->miss_predict = true;
           control_stall = true;
           bpred_mispred_count++;
+          bpred_mispred_count_thread[op->thread_id]++;
         }
         else 
+        {
           bpred_okpred_count++; 
+          bpred_okpred_count_thread[op->thread_id]++;
+        }
+
       }
     } 
     else {

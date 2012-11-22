@@ -9,6 +9,8 @@
 #include<stdlib.h>
 #include<stdint.h>
 
+#define HW_MAX_THREAD 4
+
 typedef enum bpred_type_enum{
   BPRED_NOTTAKEN, 
   BPRED_TAKEN,
@@ -22,7 +24,7 @@ typedef struct bpred bpred;
 /////////////////////////////////////////////////////////////
 
 struct bpred{
-  unsigned int  ghr; // global history register
+  unsigned int  ghr[HW_MAX_THREAD]; // global history register
   unsigned int *pht; // pattern history table
 
   bpred_type type; // type of branch predictor
@@ -38,8 +40,8 @@ struct bpred{
 /////////////////////////////////////////////////////////////
 
 bpred *bpred_new(bpred_type type, int hist_len);
-int    bpred_access(bpred *b, unsigned int pc);
-void   bpred_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir);
+int    bpred_access(bpred *b, unsigned int pc, int thread_id);
+void   bpred_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir, int thread_id);
 
 // bimodal predictor
 void   bpred_bimodal_init(bpred *b);
@@ -49,8 +51,8 @@ void   bpred_bimodal_update(bpred *b, unsigned int pc, int pred_dir, int resolve
 
 // gshare predictor
 void   bpred_gshare_init(bpred *b);
-int    bpred_gshare_access(bpred *b, unsigned int pc);
-void   bpred_gshare_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir);
+int    bpred_gshare_access(bpred *b, unsigned int pc, int thread_id);
+void   bpred_gshare_update(bpred *b, unsigned int pc, int pred_dir, int resolve_dir, int thread_id);
 
 /***********************************************************/
 #endif
