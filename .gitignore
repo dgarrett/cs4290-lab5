@@ -1,0 +1,4 @@
+sim.dSYM/
+*.o
+sim
+
