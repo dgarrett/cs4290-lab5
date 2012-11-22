@@ -42,7 +42,8 @@ void  init_latches(void);
 KnobsContainer *g_knobsContainer; /* < knob container > */
 all_knobs_c    *g_knobs; /* < all knob variables > */
 
-gzFile g_stream;
+#define HW_MAX_THREAD 4   // add this line 
+gzFile g_stream[HW_MAX_THREAD];    // replace extern gzFile stream;
 
 void init_knobs(int argc, char** argv) {
   // Create the knob managing class
@@ -59,7 +60,14 @@ void init_knobs(int argc, char** argv) {
 }
 
 void read_trace_file(void) {
-  g_stream = gzopen((KNOB(KNOB_TRACE_FILE)->getValue()).c_str(), "r");
+  g_stream[0] = gzopen((KNOB(KNOB_TRACE_FILE)->getValue()).c_str(), "r");
+
+  if ((KNOB(KNOB_RUN_THREAD_NUM)->getValue())<2) return;    /** NEW-LAB4 **/
+   g_stream[1] = gzopen((KNOB(KNOB_TRACE_FILE2)->getValue()).c_str(), "r"); /** NEW-LAB4 **/
+   if ((KNOB(KNOB_RUN_THREAD_NUM)->getValue())<3) return;  /** NEW-LAB4 **/
+   g_stream[2] = gzopen((KNOB(KNOB_TRACE_FILE3)->getValue()).c_str(), "r"); /** NEW-LAB4 **/
+   if ((KNOB(KNOB_RUN_THREAD_NUM)->getValue())<4) return;  /** NEW-LAB4 **/
+   g_stream[3] = gzopen((KNOB(KNOB_TRACE_FILE4)->getValue()).c_str(), "r"); /** NEW-LAB4 **/
 }
 
 // simulator main function is called from outside of this file 
@@ -262,6 +270,18 @@ uint64_t dtlb_miss_count = 0;      /* total number of DTLB miss */ // NEW-LAB3
 bpred *branchpred; // NEW-LAB3 (student need to initialize)
 tlb *dtlb;        // NEW-LAB3 (student need to intialize)
 
+bool br_stall[HW_MAX_THREAD] = {0};  
+uint64_t retired_instruction_thread[HW_MAX_THREAD] = {0};       // NEW for LAB4
+uint64_t dcache_miss_count_thread[HW_MAX_THREAD] = {0};         // NEW for LAB4
+uint64_t dcache_hit_count_thread[HW_MAX_THREAD] = {0};  // NEW for LAB4
+uint64_t data_hazard_count_thread[HW_MAX_THREAD] = {0};         // NEW for LAB4
+uint64_t control_hazard_count_thread[HW_MAX_THREAD] = {0};      // NEW for LAB4
+uint64_t store_load_forwarding_count_thread[HW_MAX_THREAD] = {0};       // NEW for LAB4
+uint64_t bpred_mispred_count_thread[HW_MAX_THREAD] = {0};       // NEW for LAB4
+uint64_t bpred_okpred_count_thread[HW_MAX_THREAD] = {0};        // NEW for LAB4
+uint64_t dtlb_hit_count_thread[HW_MAX_THREAD] = {0};    // NEW for LAB4
+uint64_t dtlb_miss_count_thread[HW_MAX_THREAD] = {0};   // NEW for LAB4
+
 
 /*******************************************************************/
 /*  My Variables  */
@@ -304,28 +324,43 @@ Cache *data_cache;  // NEW-LAB2
 /*******************************************************************/
 /*  Print messages  */
 /*******************************************************************/
+//lab4
 void print_stats() {
   std::ofstream out((KNOB(KNOB_OUTPUT_FILE)->getValue()).c_str());
-  /* Do not modify this function. This messages will be used for grading */ 
-  out << "Total instruction: " << retired_instruction << endl; 
-  out << "Total cycles: " << cycle_count << endl; 
+  /* Do not modify this function. This messages will be used for grading */
+
+  out << "Total instruction: " << retired_instruction << endl;
+  out << "Total cycles: " << cycle_count << endl;
   float ipc = (cycle_count ? ((float)retired_instruction/(float)cycle_count): 0 );
-  out << "IPC: " << ipc << endl; 
-  out << "Total I-cache miss: " << icache_miss_count << endl; 
-  out << "Total D-cache miss: " << dcache_miss_count << endl; 
+  out << "Total IPC: " << ipc << endl;
+  out << "Total D-cache miss: " << dcache_miss_count << endl;
   out << "Total D-cache hit: " << dcache_hit_count << endl;
   out << "Total data hazard: " << data_hazard_count << endl;
-  out << "Total control hazard : " << control_hazard_count << endl;   
-  out << "Total DRAM ROW BUFFER Hit: " << dram_row_buffer_hit_count << endl; 
-  out << "Total DRAM ROW BUFFER Miss: "<< dram_row_buffer_miss_count << endl; 
-  out << "Total Store-load forwarding: " << store_load_forwarding_count << endl; 
+  out << "Total control hazard : " << control_hazard_count << endl;
+  out << "Total DRAM ROW BUFFER Hit: " << dram_row_buffer_hit_count << endl;
+  out << "Total DRAM ROW BUFFER Miss: "<< dram_row_buffer_miss_count << endl;
+  out << "Total Store-load forwarding: " << store_load_forwarding_count << endl;
+  out << "Total Branch Predictor Mispredictions: " << bpred_mispred_count << endl;
+  out << "Total Branch Predictor OK predictions: " << bpred_okpred_count << endl;
+  out << "Total DTLB Hit: " << dtlb_hit_count << endl;
+  out << "Total DTLB Miss: " << dtlb_miss_count << endl;
 
-  // new for LAB3
-  out << "Total Branch Predictor Mispredictions: " << bpred_mispred_count << endl;   
-  out << "Total Branch Predictor OK predictions: " << bpred_okpred_count << endl;   
-  out << "Total DTLB Hit: " << dtlb_hit_count << endl; 
-  out << "Total DTLB Miss: " << dtlb_miss_count << endl; 
+  out << endl << endl << endl;
 
+  for (int ii = 0; ii < (KNOB(KNOB_RUN_THREAD_NUM)->getValue()); ii++ ) {
+    out << "THREAD instruction: " << retired_instruction_thread[ii] << " Thread id: " << ii << endl;
+    float thread_ipc = (cycle_count ? ((float)retired_instruction_thread[ii]/(float)cycle_count): 0 );
+    out << "THREAD IPC: " << thread_ipc << endl;
+    out << "THREAD D-cache miss: " << dcache_miss_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD D-cache hit: " << dcache_hit_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD data hazard: " << data_hazard_count_thread[ii] << " Thread id: " << ii <<   endl;
+    out << "THREAD control hazard : " << control_hazard_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD Store-load forwarding: " << store_load_forwarding_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD Branch Predictor Mispredictions: " << bpred_mispred_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD Branch Predictor OK predictions: " << bpred_okpred_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD DTLB Hit: " << dtlb_hit_count_thread[ii] << " Thread id: " << ii << endl;
+    out << "THREAD DTLB Miss: " << dtlb_miss_count_thread[ii] << " Thread id: " << ii << endl;
+  }
   out.close();
 }
 
@@ -334,33 +369,51 @@ void print_stats() {
 /*  Support Functions  */ 
 /*******************************************************************/
 
-bool get_op(Op *op)
+// lab4
+int get_op(Op *op)
 {
-  static UINT64 unique_count = 1; 
+  static UINT64 unique_count = 0; 
+  static UINT64 fetch_arbiter; 
+  
   Trace_op trace_op; 
   bool success = FALSE; 
   // read trace 
   // fill out op info 
   // return FALSE if the end of trace
   int read_size;
-  read_size = gzread(g_stream, &trace_op, sizeof(Trace_op));
-  success = read_size>0;
+  int fetch_id = -1; 
+  bool br_stall_fail = false; 
+  // read trace 
+  // fill out op info 
+  // return FALSE if the end of trace 
+  for (int jj = 0; jj < (KNOB(KNOB_RUN_THREAD_NUM)->getValue()); jj++) {
+    fetch_id = (fetch_arbiter++%(KNOB(KNOB_RUN_THREAD_NUM)->getValue()));
 
-  if(read_size!=sizeof(Trace_op) && read_size>0) {
-    printf( "ERROR!! gzread reads corrupted op! @cycle:%d\n", cycle_count);
-    success = false;
+    if (br_stall[fetch_id]) {
+      br_stall_fail = true; 
+      continue; 
+    }
+
+    read_size = gzread(g_stream[fetch_id], &trace_op, sizeof(Trace_op));
+    success = read_size>0;
+    if(read_size!=sizeof(Trace_op) && read_size>0) {
+      printf( "ERROR!! gzread reads corrupted op! @cycle:%d\n", cycle_count);
+      success = false;
+    }
+
+    /* copy trace structure to op */ 
+    if (success) { 
+      copy_trace_op(&trace_op, op); 
+
+      op->inst_id  = unique_count++;
+      op->valid    = TRUE; 
+      op->thread_id = fetch_id; 
+      return success;  // get op so return 
+    }
+    
+  // if not success and go to another trace. 
   }
-
-  if (KNOB(KNOB_PRINT_INST)->getValue()) dprint_trace(&trace_op); 
-
-  /* copy trace structure to op */ 
-  if (success) { 
-    copy_trace_op(&trace_op, op); 
-
-    op->inst_id  = unique_count++;
-    op->valid    = TRUE;
-    op->mem_decrement = true; 
-  }
+  if (br_stall_fail) return -1; 
   return success; 
 }
 /* return op execution cycle latency */ 
@@ -437,16 +490,21 @@ void print_pipeline() {
   std::cout << "--------------------------------------------" << endl; 
 }
 
+//lab4
 void print_heartbeat()
 {
-  static uint64_t last_cycle ;
-  static uint64_t last_inst_count; 
-  float temp_ipc = float(retired_instruction - last_inst_count) /(float)(cycle_count-last_cycle) ;
-  float ipc = float(retired_instruction) /(float)(cycle_count) ;
-  /* Do not modify this function. This messages will be used for grading */ 
-  cout <<"**Heartbeat** cycle_count: " << cycle_count << " inst:" << retired_instruction << " IPC: " << temp_ipc << " Overall IPC: " << ipc << endl; 
-  last_cycle = cycle_count;
-  last_inst_count = retired_instruction; 
+  static uint64_t last_cycle_thread[HW_MAX_THREAD] ;
+  static uint64_t last_inst_count_thread[HW_MAX_THREAD];
+
+  for (int ii = 0; ii < (KNOB(KNOB_RUN_THREAD_NUM)->getValue()); ii++ ) {
+
+    float temp_ipc = float(retired_instruction_thread[ii] - last_inst_count_thread[ii]) /(float)(cycle_count-last_cycle_thread[ii]) ;
+    float ipc = float(retired_instruction_thread[ii]) /(float)(cycle_count) ;
+    /* Do not modify this function. This messages will be used for grading */
+    cout <<"**Heartbeat** cycle_count: " << cycle_count << " inst:" << retired_instruction_thread[ii] << " IPC: " << temp_ipc << " Overall IPC: " << ipc << " thread_id " << ii << endl;
+    last_cycle_thread[ii] = cycle_count;
+    last_inst_count_thread[ii] = retired_instruction_thread[ii];
+  }
 }
 /*******************************************************************/
 /*                                                                 */

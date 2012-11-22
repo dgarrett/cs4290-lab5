@@ -41,6 +41,12 @@ class all_knobs_c {
 
 	public:
 
+		//new lab4
+		KnobTemplate< string >* KNOB_TRACE_FILE2;
+		KnobTemplate< string >* KNOB_TRACE_FILE3;
+		KnobTemplate< string >* KNOB_TRACE_FILE4;
+		KnobTemplate< unsigned >* KNOB_RUN_THREAD_NUM;
+
 		KnobTemplate< unsigned long long >* KNOB_MAX_SIM_COUNT;
 		KnobTemplate< unsigned long long >* KNOB_MAX_INST_COUNT;
 		KnobTemplate< string >* KNOB_OUTPUT_FILE;

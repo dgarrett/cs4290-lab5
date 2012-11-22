@@ -27,6 +27,12 @@ all_knobs_c::all_knobs_c() {
 	KNOB_MEM_LATENCY = new KnobTemplate< unsigned > ("mem_latency", 1);
 	KNOB_L2CACHE_LATENCY = new KnobTemplate< unsigned > ("l2cache_latency", 1);
 	KNOB_PRINT_PIPE_FREQ = new KnobTemplate< unsigned long long > ("print_pipe_freq", 0);
+
+	// new lab 4
+	KNOB_TRACE_FILE2 = new KnobTemplate< string > ("trace_file2", "trace2.pzip");
+	KNOB_TRACE_FILE3 = new KnobTemplate< string > ("trace_file3", "trace3.pzip");
+	KNOB_TRACE_FILE4 = new KnobTemplate< string > ("trace_file4", "trace4.pzip");
+	KNOB_RUN_THREAD_NUM = new KnobTemplate< unsigned > ("run_thread_num", 3);
 	
 	
 	/* lab2 additional Knobs */ 
@@ -88,6 +94,12 @@ all_knobs_c::~all_knobs_c() {
 	delete KNOB_ENABLE_VMEM;
 	delete KNOB_TLB_ENTRIES;
 	delete KNOB_VMEM_PAGE_SIZE;
+
+	// new lab4
+	delete KNOB_TRACE_FILE2;
+	delete KNOB_TRACE_FILE3;
+	delete KNOB_TRACE_FILE4;
+	delete KNOB_RUN_THREAD_NUM;
 }
 
 void all_knobs_c::registerKnobs(KnobsContainer *container) {
@@ -123,6 +135,12 @@ void all_knobs_c::registerKnobs(KnobsContainer *container) {
 	container->insertKnob( KNOB_ENABLE_VMEM);
 	container->insertKnob( KNOB_TLB_ENTRIES);
 	container->insertKnob( KNOB_VMEM_PAGE_SIZE);
+
+	// new lab4
+	container->insertKnob( KNOB_TRACE_FILE2);
+	container->insertKnob( KNOB_TRACE_FILE3);
+	container->insertKnob( KNOB_TRACE_FILE4);
+	container->insertKnob( KNOB_RUN_THREAD_NUM);
 }
 
 void all_knobs_c::display() {
@@ -158,5 +176,11 @@ void all_knobs_c::display() {
 	KNOB_ENABLE_VMEM->display(cout); cout << endl;       
 	KNOB_TLB_ENTRIES->display(cout); cout << endl;       
 	KNOB_VMEM_PAGE_SIZE->display(cout); cout << endl;       
+
+	// new lab4
+	KNOB_TRACE_FILE2->display(cout); cout << endl;
+	KNOB_TRACE_FILE3->display(cout); cout << endl;
+	KNOB_TRACE_FILE4->display(cout); cout << endl;
+	KNOB_RUN_THREAD_NUM->display(cout); cout << endl;
 }
 
