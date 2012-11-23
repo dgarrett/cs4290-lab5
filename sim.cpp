@@ -1097,6 +1097,7 @@ void ID_stage() {
   // schedule new OP
   if (!FE_latch->op_valid)
   {
+    ID_scheduler_thread = (ID_scheduler_thread + 1) % KNOB(KNOB_RUN_THREAD_NUM)->getValue();
     int original_ID_scheduler_thread = ID_scheduler_thread;
     while (!FE_latch->op_valid_thread[ID_scheduler_thread] && ID_scheduler_thread != original_ID_scheduler_thread)
     {
@@ -1135,6 +1136,7 @@ void ID_stage() {
 
     /* If no data hazard, then contiune */
     if(EX_latency_countdown!=0) {				//execution stall
+      //debug: std::cout << "STALL " << EX_latency_countdown << endl;
       ID_latch->op = ID_latch->op;  
       ID_latch->op_valid = ID_latch->op_valid;  
     }
@@ -1185,6 +1187,7 @@ void FE_stage(memory_c *main_memory) {
       {
         //FE_latch->op = NULL;
         //FE_latch->op_valid = false; 
+        free_op(op);
         return;
       }
       FE_latch->op_thread[op->thread_id] = op;

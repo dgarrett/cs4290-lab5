@@ -153,6 +153,9 @@ void  bpred_gshare_init(bpred *b){
 
   for(int ii=0; ii< b->pht_entries; ii++)
     b->pht[ii]=BPRED_PHT_CTR_INIT;
+
+  for (int i = 0; i < HW_MAX_THREAD; i++)
+    b->ghr[i] = 0;
   
 }
 

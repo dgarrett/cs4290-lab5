@@ -94,7 +94,7 @@ void tlb_install(tlb *t, uint64_t vpn, int threadid, uint64_t  pfn) {
   //insert new TLB entry
   entry->vpn = vpn;
   entry->pfn = pfn;
-  entry->threadid = 0;
+  entry->threadid = threadid;
   entry->valid = true;
   entry->last_access_time = t->s_access;
   t->s_access++;
