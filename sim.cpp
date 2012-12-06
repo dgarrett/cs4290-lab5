@@ -10,6 +10,79 @@
 #include <ctype.h> /* Library for useful character operations */
 
 
+/*
+ * Power simulation data for McPAT
+ */
+struct _pwr {
+  int
+    // overall
+    total_instructions,
+    total_cycles,
+    fp_instructions,
+    int_instructions,
+    branch_instructions,
+    load_instructions,
+    store_instructions,
+
+    // fetch stage
+    icache_read_accesses,
+    branch_mispredictions,
+
+    // decode stage
+    scheduler_accesses, // WTF?
+    int_regfile_reads,
+    float_regfile_reads,
+
+    // execution stage
+    mul_accesses,
+
+    // memory
+    dcache_reads,
+    dcache_writes,
+    mem_accesses,
+
+    // WB
+    int_regfile_writes,
+    float_regfile_writes
+  ;
+} pwr;
+
+void print_pwr()
+{
+  ofstream out("power_counters.txt");
+
+  out << "===Overall===" << endl;
+  out << "Total number of instructions: " << pwr.total_instructions << endl;
+  out << "Total simulation cycles: " << pwr.total_cycles << endl;
+  out << "Number of floating point operations: " << pwr.fp_instructions << endl;
+  out << "Number of integer operations: " << pwr.int_instructions << endl;
+  out << "Number of branch instructions: " << pwr.branch_instructions << endl;
+  out << "Number of load instructions: " << pwr.load_instructions << endl;
+  out << "Number of store instructions: " << pwr.store_instructions << endl;
+
+  out << endl << "===Fetch Stage===" << endl;
+  out << "Number of I-cache accesses: " << pwr.icache_read_accesses << endl;
+  out << "Number of branch mispredictions: " << pwr.branch_mispredictions << endl;
+
+  out << endl << "===Decode Stage===" << endl;
+  out << "Number of scheduler accesses: " << pwr.scheduler_accesses << endl;
+  out << "Number of register reads for integer operations: " << pwr.int_regfile_reads << endl;
+  out << "Number of register reads for fp operations: " << pwr.float_regfile_reads << endl;
+
+  out << endl << "===Execution Stage===" << endl;
+  out << "Number of multiply instructions: " << pwr.mul_accesses << endl;
+
+  out << endl << "===Memory===" << endl;
+  out << "Number of data cache reads: " << pwr.dcache_reads << endl;
+  out << "Number of data cache writes: " << pwr.dcache_writes << endl;
+  out << "Number of memory accesses: " << pwr.mem_accesses << endl;
+
+  out << endl << "===WB===" << endl;
+  out << "Number of register writes for integer operations: " << pwr.int_regfile_writes << endl;
+  out << "Number of register writes for fp operations: " << pwr.float_regfile_writes << endl;
+}
+
+
 /*******************************************************************/
 /* Simulator frame */ 
 /*******************************************************************/
