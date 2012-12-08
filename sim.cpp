@@ -600,6 +600,7 @@ bool run_a_cycle(memory_c *main_memory){   // please modify run_a_cycle function
         // finish the simulation 
         print_heartbeat(); 
         print_stats();
+        print_pwr();
         return TRUE; 
     }
     cycle_count++; 
@@ -615,6 +616,8 @@ bool run_a_cycle(memory_c *main_memory){   // please modify run_a_cycle function
     ID_stage();
     FE_stage(main_memory); 
     if (KNOB(KNOB_PRINT_PIPE_FREQ)->getValue() && !(cycle_count%KNOB(KNOB_PRINT_PIPE_FREQ)->getValue())) print_pipeline();
+
+    pwr.total_cycles++;
   }
   return TRUE; 
 }
@@ -685,6 +688,9 @@ void WB_stage(memory_c *main_memory) {
     }
 
     if( MEM_latch->op->dst!= -1 ) {
+      if (MEM_latch->op->is_fp) pwr.float_regfile_writes++;
+      else pwr.int_regfile_writes++;
+
       if(register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count>0)
       register_file[MEM_latch->op->thread_id][ MEM_latch->op->dst ].count--;
 
@@ -1144,6 +1150,7 @@ void EX_stage() {
     if( EX_latency_countdown==0 ) {
       EX_latch->op = ID_latch->op;
       EX_latch->op_valid = ID_latch->op_valid;
+      if (ID_latch->op->opcode == OP_IMUL || ID_latch->op->opcode == OP_MM) pwr.mul_accesses++;
     }
     else if(EX_latency_countdown==-1) {
       EX_latch->op = EX_latch->op;
@@ -1162,6 +1169,7 @@ void EX_stage() {
     else {
       EX_latch->op = ID_latch->op;
       EX_latch->op_valid = ID_latch->op_valid;
+      //if (ID_latch->op->opcode == OP_IMUL || ID_latch->op->opcode == OP_MM) pwr.mul_accesses++;
     }
   }
 }
@@ -1187,10 +1195,15 @@ void ID_stage() {
   }
 
   if( FE_latch->op_valid ) {
+    pwr.scheduler_accesses++;
+
     /* Checking for any source data hazard */
     if( EX_latency_countdown==0) {
       /* Checking for any source data hazard */   
       for (int ii = 0; ii < FE_latch->op->num_src; ii++) {
+        if (FE_latch->op->is_fp) pwr.float_regfile_reads++;
+        else pwr.int_regfile_reads++;
+
         if( register_file[FE_latch->op->thread_id][ FE_latch->op->src[ii] ].valid == false ) {
           data_hazard_count++;  
           data_hazard_count_thread[FE_latch->op->thread_id]++;
@@ -1263,6 +1276,15 @@ void FE_stage(memory_c *main_memory) {
         free_op(op);
         return;
       }
+
+      pwr.total_instructions++;
+      pwr.icache_read_accesses++;
+      if (op->is_fp) pwr.fp_instructions++;
+      if (op->opcode >= OP_IADD && op->opcode <=OP_IDIV) pwr.int_instructions++;
+      if (op->cf_type != NOT_CF) pwr.branch_instructions++;
+      if (op->mem_type == MEM_LD) pwr.load_instructions++;
+      if (op->mem_type == MEM_ST) pwr.store_instructions++;
+
       FE_latch->op_thread[op->thread_id] = op;
       FE_latch->op_valid_thread[op->thread_id] = true;
 
@@ -1284,6 +1306,8 @@ void FE_stage(memory_c *main_memory) {
         bpred_update(branchpred, op->instruction_addr, bpred_result, op->actually_taken, op->thread_id); 
         
         if(bpred_result!=op->actually_taken) {
+          pwr.branch_mispredictions++;
+
           op->miss_predict = true;
           control_stall = true;
           br_stall[op->thread_id] = true;
@@ -1359,6 +1383,8 @@ void init_regfile() {
 bool icache_access(ADDRINT addr) {  
   bool hit = FALSE; 
 
+  pwr.icache_read_accesses++;
+
   if (KNOB(KNOB_PERFECT_ICACHE)->getValue()) 
     hit = TRUE; 
 
@@ -1367,6 +1393,8 @@ bool icache_access(ADDRINT addr) {
 
 bool dcache_access(ADDRINT addr) { 
   bool hit = false;
+
+  pwr.dcache_reads++;
 
   if (KNOB(KNOB_PERFECT_DCACHE)->getValue())
     hit = TRUE;
@@ -1378,10 +1406,12 @@ bool dcache_access(ADDRINT addr) {
 
  
 void dcache_insert(ADDRINT addr) {  
+  pwr.dcache_writes++;
   cache_insert(data_cache, addr) ;   
 } 
 
 void broadcast_rdy_op(Op* op) { 
+  pwr.mem_accesses++;
   MEM_WB_latch.push_back(op);
   oplist.push_back(op->inst_id);
 }      
