@@ -49,7 +49,7 @@ struct _pwr {
 
 void print_pwr()
 {
-  ofstream out("power_counters.txt");
+  ofstream out(((KNOB(KNOB_OUTPUT_FILE)->getValue()) + "_power_counters.txt").c_str());
 
   out << "===Overall===" << endl;
   out << "Total number of instructions: " << pwr.total_instructions << endl;
@@ -486,6 +486,8 @@ int get_op(Op *op)
       op->inst_id  = unique_count++;
       op->valid    = TRUE; 
       op->thread_id = fetch_id; 
+
+      //if (op->opcode >= OP_FMEM && op->opcode <= OP_FCMO) op->is_fp = true;
       return success;  // get op so return 
     }
     
