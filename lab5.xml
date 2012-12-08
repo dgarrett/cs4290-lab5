@@ -210,7 +210,7 @@
 			<component id="system.core0.icache" name="icache">
 				<!-- there is no write requests to itlb although writes happen to it after miss, 
 				which is actually a replacement -->
-				<param name="icache_config" value="512,32,4,1,1,5,8,0"/>
+				<param name="icache_config" value="1048576,32,8,1,1,5,8,0"/>
 				<!-- the parameters are capacity,block_width, associativity, bank, throughput w.r.t. core clock, latency w.r.t. core clock,output_width, cache policy -->
 				<!-- cache_policy;//0 no write or write-though with non-write allocate;1 write-back with write-allocate -->
 				<param name="buffer_sizes" value="16, 16, 16,0"/>
@@ -227,7 +227,7 @@
 			</component>
 			<component id="system.core0.dcache" name="dcache">
 			        <!-- all the buffer related are optional -->
-				<param name="dcache_config" value="512,16,4,1,1,5,16,0"/>
+				<param name="dcache_config" value="1048576,16,4,1,1,5,16,0"/>
 				<param name="buffer_sizes" value="16, 16, 16, 16"/>
 				<!-- cache controller buffer sizes: miss_buffer_size(MSHR),fill_buffer_size,prefetch_buffer_size,wb_buffer_size-->	
 				<stat name="read_accesses" value="200000"/>
